@@ -1,0 +1,5 @@
+fastapi        # API framework (to build your API)
+uvicorn        # server to run FastAPI
+pandas         # for data handling
+scikit-learn   # ML model
+joblib         # save/load model
