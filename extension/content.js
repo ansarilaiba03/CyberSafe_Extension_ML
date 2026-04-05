@@ -1,10 +1,10 @@
 // ============================================================
 // content.js — CyberSafe Content Script
 // Responsibilities:
-//   1. Respond to GET_PAGE_DATA (popup page scan)
-//   2. Hover tooltip on links  — ML via background
-//   3. Click blocker on links  — ML via background
-// No local scoring logic — all predictions come from the ML API.
+//   1. Respond to GET_PAGE_DATA (kept for compatibility)
+//   2. Hover tooltip on links  — ML via background (UNCHANGED)
+//   3. Click blocker on links  — ML via background (UNCHANGED)
+//   4. NEW: Send hovered link ML result to popup assistant via storage
 // ============================================================
 
 if (window.__cybersafeInjected) {
@@ -72,7 +72,24 @@ if (window.__cybersafeInjected) {
     tooltip.style.left = (x + 14) + "px";
   }
 
-  // ── Hover: show ML-powered tooltip ─────────────────────────
+  // ── NEW: Push ML result to popup assistant via chrome.storage ──
+  function pushToAssistant(result) {
+    chrome.storage.local.set({
+      cybersafe_hovered_link: {
+        url:        result.url,
+        riskScore:  result.riskScore,
+        riskLevel:  result.riskLevel,
+        scamType:   result.scamType,
+        prediction: result.prediction,
+        confidence: result.confidence,
+        isSafe:     result.isSafe,
+        reasons:    result.reasons || [],
+        timestamp:  Date.now()
+      }
+    });
+  }
+
+  // ── Hover: show ML-powered tooltip (UNCHANGED) + push to assistant ──
   document.addEventListener("mouseover", (e) => {
     const link = e.target.closest("a[href]");
     if (!link) return;
@@ -86,8 +103,10 @@ if (window.__cybersafeInjected) {
       chrome.runtime.sendMessage({ action: "ML_PREDICT", url }, (resp) => {
         if (chrome.runtime.lastError || !resp?.success) return;
         createTooltip(e.clientX, e.clientY, resp.data);
+        // NEW: also send to popup assistant
+        pushToAssistant(resp.data);
       });
-    }, 350); // 350ms debounce
+    }, 350); // 350ms debounce — UNCHANGED
   });
 
   document.addEventListener("mousemove", (e) => {
@@ -103,7 +122,7 @@ if (window.__cybersafeInjected) {
     }
   });
 
-  // ── Click: block high-risk links ────────────────────────────
+  // ── Click: block high-risk links (UNCHANGED) ─────────────────
   document.addEventListener("click", (e) => {
     const link = e.target.closest("a[href]");
     if (!link) return;
@@ -111,13 +130,11 @@ if (window.__cybersafeInjected) {
     const url = link.href;
     if (!url || url.startsWith("javascript:")) return;
 
-    // Prevent navigation immediately; restore if ML says it's safe
     e.preventDefault();
     e.stopImmediatePropagation();
 
     chrome.runtime.sendMessage({ action: "ML_PREDICT", url }, (resp) => {
       if (chrome.runtime.lastError || !resp?.success) {
-        // API unreachable — allow navigation (fail open)
         window.location.href = url;
         return;
       }
@@ -125,7 +142,6 @@ if (window.__cybersafeInjected) {
       const result = resp.data;
 
       if (!result.isSafe && result.riskLevel === "High") {
-        // High risk — show confirmation dialog
         const proceed = window.confirm(
           `⚠️ CyberSafe Warning\n\n` +
           `This link looks dangerous.\n` +
@@ -135,15 +151,13 @@ if (window.__cybersafeInjected) {
         );
         if (proceed) window.location.href = url;
       } else {
-        // Safe or medium — allow navigation
         window.location.href = url;
       }
     });
-  }, true); // capture phase so we intercept before other handlers
+  }, true);
 
   // ── Message listener: GET_PAGE_DATA + PING ──────────────────
   chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-    // Health check from background.js
     if (request.action === "PING") {
       sendResponse({ success: true });
       return false;
@@ -155,7 +169,6 @@ if (window.__cybersafeInjected) {
           .map(a => a.href)
           .filter(href => href && href.startsWith("http"));
 
-        // Basic form signals (used as context, not for local scoring)
         const forms          = document.querySelectorAll("form");
         const passwordFields = document.querySelectorAll("input[type='password']");
         const sensitiveInputs = document.querySelectorAll(
@@ -177,7 +190,7 @@ if (window.__cybersafeInjected) {
         sendResponse({ success: false, error: err.message });
       }
 
-      return false; // synchronous response
+      return false;
     }
   });
 
