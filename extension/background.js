@@ -3,8 +3,8 @@
 // Single source of truth: all ML predictions go through here.
 // ============================================================
 
-const ML_API = "http://127.0.0.1:8000/predict"; // the address of ML, it tells your extension, whenever you want prediction -> go here. "http://" = talk using internet, "127.0.0.1" = my owm computer, "8000" = port where FastAPI runs, "/predict" = function to call
-const ML_BATCH_API = "http://127.0.0.1:8000/predict_batch"; // optional batch endpoint
+const ML_API = "https://cybersafe-je3e.onrender.com/predict";
+//const ML_BATCH_API = "https://cybersafe-je3e.onrender.com/predict_batch";
 
 // ── Prediction cache (survives within the service worker's lifetime) ──
 // if i already checked this URL -> dont check again, because without this hover same link 10 times -> 10 API calls with cache: 1 API call -> reuse result
